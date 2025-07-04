@@ -1,0 +1,75 @@
+{
+  "name": "error-explorer-angular-reporter",
+  "version": "2.0.0",
+  "description": "Advanced Angular SDK for Error Explorer - Comprehensive error tracking and monitoring with offline support, rate limiting, security validation, and real-time analytics",
+  "main": "bundles/error-explorer-angular-reporter.umd.js",
+  "module": "fesm2015/error-explorer-angular-reporter.js",
+  "es2015": "fesm2015/error-explorer-angular-reporter.js",
+  "esm2015": "esm2015/error-explorer-angular-reporter.js",
+  "fesm2015": "fesm2015/error-explorer-angular-reporter.js",
+  "typings": "error-explorer-angular-reporter.d.ts",
+  "files": [
+    "bundles",
+    "fesm2015",
+    "esm2015",
+    "src",
+    "*.d.ts",
+    "*.metadata.json",
+    "README.md",
+    "ng-package.json"
+  ],
+  "scripts": {
+    "build": "ng-packagr -p ng-package.json",
+    "test": "echo \"Tests disabled for standalone package\"",
+    "test:watch": "echo \"Tests disabled for standalone package\"",
+    "test:coverage": "echo \"Tests disabled for standalone package\"", 
+    "test:ci": "echo \"Tests disabled for standalone package\"",
+    "lint": "echo \"Linting disabled for standalone package\"",
+    "lint:fix": "echo \"Linting disabled for standalone package\"",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run build",
+    "validate": "npm run typecheck"
+  },
+  "keywords": [
+    "error-tracking",
+    "error-monitoring",
+    "error-reporting",
+    "angular",
+    "typescript",
+    "monitoring",
+    "debugging",
+    "logging",
+    "analytics",
+    "offline-support",
+    "rate-limiting",
+    "security",
+    "breadcrumbs",
+    "performance"
+  ],
+  "author": "Error Explorer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Manguet/ErrorReportAngularSDK.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Manguet/ErrorReportAngularSDK/issues"
+  },
+  "homepage": "https://github.com/Manguet/ErrorReportAngularSDK#readme",
+  "dependencies": {
+    "tslib": "^2.6.0"
+  },
+  "devDependencies": {
+    "ng-packagr": "^15.0.0",
+    "typescript": "~4.9.0"
+  },
+  "peerDependencies": {
+    "@angular/core": ">=14.0.0",
+    "@angular/common": ">=14.0.0",
+    "@angular/router": ">=14.0.0",
+    "rxjs": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
