@@ -1,6 +1,6 @@
 {
   "name": "error-explorer-angular-reporter",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Advanced Angular SDK for Error Explorer - Comprehensive error tracking and monitoring with offline support, rate limiting, security validation, and real-time analytics",
   "main": "bundles/error-explorer-angular-reporter.umd.js",
   "module": "fesm2015/error-explorer-angular-reporter.js",
