@@ -1,6 +1,24 @@
 import { Injectable } from '@angular/core';
 import { CompressionConfig, CompressionStats, ErrorData } from '../types';
 
+// Type declarations for Compression Streams API
+declare global {
+  interface Window {
+    CompressionStream?: new (format: string) => CompressionStream;
+    DecompressionStream?: new (format: string) => DecompressionStream;
+  }
+}
+
+interface CompressionStream {
+  readonly readable: ReadableStream<Uint8Array>;
+  readonly writable: WritableStream<Uint8Array>;
+}
+
+interface DecompressionStream {
+  readonly readable: ReadableStream<Uint8Array>;
+  readonly writable: WritableStream<Uint8Array>;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -27,7 +45,7 @@ export class CompressionService {
 
   isSupported(): boolean {
     // Check if compression is supported in the browser
-    return typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
+    return typeof (window as any).CompressionStream !== 'undefined' && typeof (window as any).DecompressionStream !== 'undefined';
   }
 
   shouldCompress(data: ErrorData | ErrorData[]): boolean {
@@ -52,7 +70,7 @@ export class CompressionService {
       const originalBytes = new TextEncoder().encode(jsonString);
       
       // Use browser's CompressionStream if available
-      const compressionStream = new CompressionStream('gzip');
+      const compressionStream = new (window as any).CompressionStream('gzip');
       const writer = compressionStream.writable.getWriter();
       const reader = compressionStream.readable.getReader();
       
@@ -108,7 +126,7 @@ export class CompressionService {
       const compressedBytes = this.base64ToArrayBuffer(compressedData);
       
       // Use browser's DecompressionStream
-      const decompressionStream = new DecompressionStream('gzip');
+      const decompressionStream = new (window as any).DecompressionStream('gzip');
       const writer = decompressionStream.writable.getWriter();
       const reader = decompressionStream.readable.getReader();
       
