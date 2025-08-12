@@ -1,4 +1,4 @@
-# @error-explorer/angular
+# error-explorer-angular
 
 **Advanced Angular SDK for Error Explorer** - Comprehensive error tracking and monitoring with offline support, rate limiting, security validation, and real-time analytics.
 
@@ -16,9 +16,9 @@
 ## Installation
 
 ```bash
-npm install @error-explorer/angular
-# or
-yarn add @error-explorer/angular
+npm install error-explorer-angular
+# ou
+yarn add error-explorer-angular
 ```
 
 ## Quick Start
@@ -29,7 +29,7 @@ yarn add @error-explorer/angular
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { HttpClientModule } from '@angular/common/http';
-import { ErrorExplorerModule } from '@error-explorer/angular';
+import { ErrorExplorerModule } from 'error-explorer-angular';
 
 import { AppComponent } from './app.component';
 
@@ -40,7 +40,7 @@ import { AppComponent } from './app.component';
     HttpClientModule,
     ErrorExplorerModule.forRoot({
       projectToken: 'your-project-token',
-      apiUrl: 'https://your-domain.com',
+      apiUrl: 'https://error-explorer.com',
       projectName: 'my-angular-app',
       environment: 'production'
     })
@@ -57,7 +57,7 @@ export class AppModule { }
 import { bootstrapApplication } from '@angular/platform-browser';
 import { importProvidersFrom } from '@angular/core';
 import { HttpClientModule } from '@angular/common/http';
-import { ErrorExplorerModule } from '@error-explorer/angular';
+import { ErrorExplorerModule } from 'error-explorer-angular';
 import { AppComponent } from './app/app.component';
 
 bootstrapApplication(AppComponent, {
@@ -65,7 +65,7 @@ bootstrapApplication(AppComponent, {
     importProvidersFrom(
       HttpClientModule,
       ErrorExplorerModule.forRoot({
-        webhookUrl: 'https://your-domain.com/webhook/project-token',
+        webhookUrl: 'https://error-explorer.com/webhook/project-token',
         projectName: 'my-angular-app',
         environment: 'production'
       })
@@ -78,7 +78,7 @@ bootstrapApplication(AppComponent, {
 
 ```typescript
 import { Component } from '@angular/core';
-import { ErrorExplorerService } from '@error-explorer/angular';
+import { ErrorExplorerService } from 'error-explorer-angular';
 
 @Component({
   selector: 'app-example',
@@ -132,7 +132,7 @@ export class ExampleComponent {
 ErrorExplorerModule.forRoot({
   // Required
   projectToken: 'your-project-token',
-  apiUrl: 'https://your-domain.com',
+  apiUrl: 'https://error-explorer.com',
   projectName: 'my-angular-app',
   
   // Basic settings
@@ -481,7 +481,7 @@ export class UserContextComponent {
 
 ```typescript
 import { ErrorHandler, Injectable } from '@angular/core';
-import { ErrorExplorerService } from '@error-explorer/angular';
+import { ErrorExplorerService } from 'error-explorer-angular';
 
 @Injectable()
 export class CustomErrorHandler implements ErrorHandler {
@@ -579,7 +579,7 @@ export const environment = {
 export const environment = {
   production: true,
   errorExplorer: {
-    webhookUrl: 'https://your-domain.com/webhook/prod-token',
+    webhookUrl: 'https://error-explorer.com/webhook/prod-token',
     projectName: 'my-app',
     environment: 'production',
     enabled: true,
@@ -723,14 +723,14 @@ interface HealthStatus {
 ```typescript
 // v1 Configuration
 ErrorExplorerModule.forRoot({
-  webhookUrl: 'https://your-domain.com/webhook/project-token',
+  webhookUrl: 'https://error-explorer.com/webhook/project-token',
   projectName: 'my-app'
 })
 
 // v2 Configuration  
 ErrorExplorerModule.forRoot({
   projectToken: 'project-token',
-  apiUrl: 'https://your-domain.com',
+  apiUrl: 'https://error-explorer.com',
   projectName: 'my-app'
 })
 ```
