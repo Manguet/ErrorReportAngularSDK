@@ -31,6 +31,23 @@ export interface ErrorExplorerConfig {
   allowedDomains?: string[];
   requireHttps?: boolean;
   
+  // Batch management
+  enableBatching?: boolean;
+  batchSize?: number;
+  batchTimeout?: number;
+  maxPayloadSize?: number;
+  
+  // Compression
+  enableCompression?: boolean;
+  compressionThreshold?: number;
+  compressionLevel?: number;
+  
+  // Circuit Breaker
+  enableCircuitBreaker?: boolean;
+  circuitBreakerFailureThreshold?: number;
+  circuitBreakerTimeout?: number;
+  circuitBreakerResetTimeout?: number;
+  
   // Angular specific
   captureRouteChanges?: boolean;
   captureHttpErrors?: boolean;
@@ -194,5 +211,49 @@ export interface HealthStatus {
 }
 
 export type ErrorLevel = 'debug' | 'info' | 'warning' | 'error';
+
+// Batch Manager interfaces
+export interface BatchConfig {
+  batchSize: number;
+  batchTimeout: number;
+  maxPayloadSize: number;
+}
+
+export interface BatchStats {
+  currentSize: number;
+  totalBatches: number;
+  totalErrors: number;
+  averageBatchSize: number;
+  lastSentAt?: number;
+}
+
+// Compression Service interfaces
+export interface CompressionConfig {
+  threshold: number;
+  level: number;
+}
+
+export interface CompressionStats {
+  totalCompressions: number;
+  totalDecompressions: number;
+  totalBytesSaved: number;
+  averageCompressionRatio: number;
+  compressionTime: number;
+}
+
+// Circuit Breaker interfaces
+export interface CircuitBreakerConfig {
+  failureThreshold: number;
+  timeout: number;
+  resetTimeout: number;
+}
+
+export interface CircuitBreakerStats {
+  state: string;
+  failureCount: number;
+  successCount: number;
+  lastFailureTime: number | null;
+  nextRetryTime: number | null;
+}
 
 export const ERROR_EXPLORER_CONFIG = 'ERROR_EXPLORER_CONFIG';

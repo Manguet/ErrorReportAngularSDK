@@ -4,11 +4,15 @@ import { ErrorExplorerConfig, ERROR_EXPLORER_CONFIG } from './types';
 import { ErrorExplorerService } from './services/error-explorer.service';
 import { ErrorExplorerErrorHandler } from './error-handler';
 import { ErrorExplorerHttpInterceptor } from './http-interceptor';
+import { BatchManagerService } from './services/batch-manager.service';
+import { CompressionService } from './services/compression.service';
 
 @NgModule({
   imports: [HttpClientModule],
   providers: [
-    ErrorExplorerService
+    ErrorExplorerService,
+    BatchManagerService,
+    CompressionService
   ]
 })
 export class ErrorExplorerModule {

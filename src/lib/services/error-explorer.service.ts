@@ -21,6 +21,9 @@ import { OfflineManagerService } from './offline-manager.service';
 import { SecurityValidatorService } from './security-validator.service';
 import { SDKMonitorService } from './sdk-monitor.service';
 import { QuotaManagerService } from './quota-manager.service';
+import { BatchManagerService } from './batch-manager.service';
+import { CompressionService } from './compression.service';
+import { CircuitBreakerService } from './circuit-breaker.service';
 
 @Injectable({
   providedIn: 'root'
@@ -29,13 +32,16 @@ export class ErrorExplorerService {
   private config: Required<Omit<ErrorExplorerConfig, 'userId' | 'userEmail' | 'beforeSend' | 'customData' | 'commitHash' | 'version' | 'allowedDomains'>> & 
     Pick<ErrorExplorerConfig, 'userId' | 'userEmail' | 'beforeSend' | 'customData' | 'commitHash' | 'version' | 'allowedDomains'>;
   private userContext: UserContext = {};
-  private breadcrumbManager: BreadcrumbManager;
-  private retryManager: RetryManagerService;
-  private rateLimiter: RateLimiterService;
-  private offlineManager: OfflineManagerService;
-  private securityValidator: SecurityValidatorService;
-  private sdkMonitor: SDKMonitorService;
-  private quotaManager: QuotaManagerService;
+  private breadcrumbManager!: BreadcrumbManager;
+  private retryManager!: RetryManagerService;
+  private rateLimiter!: RateLimiterService;
+  private offlineManager!: OfflineManagerService;
+  private securityValidator!: SecurityValidatorService;
+  private sdkMonitor!: SDKMonitorService;
+  private quotaManager!: QuotaManagerService;
+  private batchManager!: BatchManagerService;
+  private compressionService!: CompressionService;
+  private circuitBreaker!: CircuitBreakerService;
   private isInitialized: boolean = false;
   private cleanupInterval: number | null = null;
 
@@ -65,6 +71,20 @@ export class ErrorExplorerService {
       requireHttps: false,
       captureRouteChanges: true,
       captureHttpErrors: true,
+      // Batch manager defaults
+      enableBatching: true,
+      batchSize: 10,
+      batchTimeout: 5000,
+      maxPayloadSize: 1048576, // 1MB
+      // Compression defaults
+      enableCompression: true,
+      compressionThreshold: 1024, // 1KB
+      compressionLevel: 6,
+      // Circuit breaker defaults
+      enableCircuitBreaker: true,
+      circuitBreakerFailureThreshold: 5,
+      circuitBreakerTimeout: 30000,
+      circuitBreakerResetTimeout: 60000,
       ...config
     };
 
@@ -73,27 +93,32 @@ export class ErrorExplorerService {
   }
 
   private initializeServices(): void {
-    // Initialize all services
-    this.breadcrumbManager = new BreadcrumbManager(this.config.maxBreadcrumbs);
+    // Initialize all services with dependency injection
+    this.breadcrumbManager = new BreadcrumbManager();
+    this.breadcrumbManager.setMaxBreadcrumbs(this.config.maxBreadcrumbs);
     
-    this.retryManager = new RetryManagerService({
+    this.retryManager = new RetryManagerService();
+    this.retryManager.configure({
       maxRetries: this.config.maxRetries,
       initialDelay: this.config.initialRetryDelay,
       maxDelay: this.config.maxRetryDelay,
     });
     
-    this.rateLimiter = new RateLimiterService({
+    this.rateLimiter = new RateLimiterService();
+    this.rateLimiter.configure({
       maxRequests: this.config.maxRequestsPerMinute,
       windowMs: 60000,
       duplicateErrorWindow: this.config.duplicateErrorWindow,
     });
     
-    this.offlineManager = new OfflineManagerService(
+    this.offlineManager = new OfflineManagerService();
+    this.offlineManager.configure(
       this.config.maxOfflineQueueSize,
       this.config.offlineQueueMaxAge
     );
     
-    this.securityValidator = new SecurityValidatorService({
+    this.securityValidator = new SecurityValidatorService();
+    this.securityValidator.configure({
       requireHttps: this.config.requireHttps,
       validateToken: true,
       maxPayloadSize: 1024 * 1024, // 1MB
@@ -101,13 +126,45 @@ export class ErrorExplorerService {
     
     this.sdkMonitor = new SDKMonitorService();
     
-    this.quotaManager = new QuotaManagerService({
+    this.quotaManager = new QuotaManagerService();
+    this.quotaManager.configure({
       dailyLimit: 1000,
       monthlyLimit: 10000,
       payloadSizeLimit: 1024 * 1024,
       burstLimit: 50,
       burstWindowMs: 60000,
     });
+    
+    // Initialize batch manager
+    this.batchManager = new BatchManagerService();
+    if (this.config.enableBatching) {
+      this.batchManager.configure({
+        batchSize: this.config.batchSize || 10,
+        batchTimeout: this.config.batchTimeout || 5000,
+        maxPayloadSize: this.config.maxPayloadSize || 1048576
+      });
+      // Set up the send function for batch manager
+      this.batchManager.setSendFunction((errors) => this.sendBatchDirectly(errors));
+    }
+    
+    // Initialize compression service
+    this.compressionService = new CompressionService();
+    if (this.config.enableCompression) {
+      this.compressionService.configure({
+        threshold: this.config.compressionThreshold || 1024,
+        level: this.config.compressionLevel || 6
+      });
+    }
+    
+    // Initialize circuit breaker service
+    this.circuitBreaker = new CircuitBreakerService();
+    if (this.config.enableCircuitBreaker) {
+      this.circuitBreaker.configure({
+        failureThreshold: this.config.circuitBreakerFailureThreshold || 5,
+        timeout: this.config.circuitBreakerTimeout || 30000,
+        resetTimeout: this.config.circuitBreakerResetTimeout || 60000
+      });
+    }
   }
 
   private initialize(): void {
@@ -153,8 +210,8 @@ export class ErrorExplorerService {
     if (!this.router || !this.config.captureRouteChanges) return;
 
     this.router.events
-      .pipe(filter(event => event instanceof NavigationEnd))
-      .subscribe((event: NavigationEnd) => {
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe((event) => {
         this.breadcrumbManager.logNavigation('', event.url, {
           urlAfterRedirects: event.urlAfterRedirects
         });
@@ -302,7 +359,13 @@ export class ErrorExplorerService {
         console.log('[ErrorExplorer] Reporting error:', report);
       }
 
-      await this.sendReport(report);
+      // Use batch manager if enabled, otherwise send directly
+      if (this.config.enableBatching) {
+        const errorData: ErrorData = this.transformReportToErrorData(report);
+        this.batchManager.addToBatch(errorData);
+      } else {
+        await this.sendReport(report);
+      }
       this.quotaManager.recordErrorSent(estimatedSize);
       this.sdkMonitor.recordErrorReported(estimatedSize);
       this.rateLimiter.recordRequest(errorFingerprint);
@@ -384,9 +447,19 @@ export class ErrorExplorerService {
       return;
     }
 
-    // Try to send with retry logic
+    // Execute with circuit breaker protection
+    const sendWithCircuitBreaker = async () => {
+      if (this.config.enableCircuitBreaker) {
+        return await this.circuitBreaker.execute(() => 
+          this.retryManager.executeWithRetry(() => this.sendReportDirectly(report))
+        );
+      } else {
+        return await this.retryManager.executeWithRetry(() => this.sendReportDirectly(report));
+      }
+    };
+
     try {
-      await this.retryManager.executeWithRetry(() => this.sendReportDirectly(report));
+      await sendWithCircuitBreaker();
       
       // Process offline queue if we're back online
       if (this.config.enableOfflineSupport) {
@@ -402,6 +475,156 @@ export class ErrorExplorerService {
       } else {
         throw error;
       }
+    }
+  }
+
+  private transformReportToErrorData(report: ErrorReport): ErrorData {
+    return {
+      message: report.message,
+      exception_class: report.type || 'Error',
+      stack_trace: report.stack || '',
+      file: this.extractFilename(report.stack) || 'unknown',
+      line: this.extractLineNumber(report.stack) || 0,
+      project: this.config.projectName,
+      environment: report.environment,
+      timestamp: new Date().toISOString(),
+      commitHash: this.config.commitHash,
+      browser: this.getBrowserData(),
+      request: this.getRequestData(),
+      context: report.context,
+      breadcrumbs: report.context.breadcrumbs,
+      user: {
+        id: this.config.userId,
+        email: this.config.userEmail,
+        ...this.userContext
+      }
+    };
+  }
+
+  private getBrowserData() {
+    if (typeof navigator === 'undefined' || typeof screen === 'undefined') {
+      return undefined;
+    }
+    
+    return {
+      name: this.getBrowserName(),
+      version: this.getBrowserVersion(),
+      platform: navigator.platform,
+      language: navigator.language,
+      cookies_enabled: navigator.cookieEnabled,
+      online: navigator.onLine,
+      screen: {
+        width: screen.width,
+        height: screen.height,
+        color_depth: screen.colorDepth
+      }
+    };
+  }
+
+  private getRequestData() {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    
+    return {
+      url: window.location.href,
+      referrer: document.referrer,
+      user_agent: navigator.userAgent,
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight
+      }
+    };
+  }
+
+  private getBrowserName(): string {
+    const userAgent = navigator.userAgent;
+    if (userAgent.includes('Chrome')) return 'Chrome';
+    if (userAgent.includes('Firefox')) return 'Firefox';
+    if (userAgent.includes('Safari')) return 'Safari';
+    if (userAgent.includes('Edge')) return 'Edge';
+    return 'Unknown';
+  }
+
+  private getBrowserVersion(): string {
+    const userAgent = navigator.userAgent;
+    const match = userAgent.match(/(?:Chrome|Firefox|Safari|Edge)\/([0-9.]+)/);
+    return match ? match[1] : 'Unknown';
+  }
+
+  private async sendBatchDirectly(errors: ErrorData[]): Promise<void> {
+    if (errors.length === 0) return;
+
+    const requestId = this.sdkMonitor.recordRequestStart();
+    
+    try {
+      // Apply compression if enabled and supported
+      let payload: any = errors;
+      
+      if (this.config.enableCompression && this.compressionService.isSupported()) {
+        const shouldCompress = this.compressionService.shouldCompress(errors);
+        if (shouldCompress) {
+          try {
+            const compressedData = await this.compressionService.compress(errors);
+            payload = { compressed: true, data: compressedData };
+          } catch (compressionError) {
+            if (this.config.debug) {
+              console.warn('[ErrorExplorer] Compression failed, sending uncompressed:', compressionError);
+            }
+            // Fall back to uncompressed
+            payload = errors;
+          }
+        }
+      }
+
+      // Sanitize payload for security
+      const sanitizedPayload = this.securityValidator.sanitizeData(payload);
+      const payloadString = JSON.stringify(sanitizedPayload);
+      const payloadSize = new Blob([payloadString]).size;
+
+      // Validate payload size
+      const sizeValidation = this.securityValidator.validatePayloadSize(payloadString);
+      if (!sizeValidation.isValid) {
+        this.sdkMonitor.recordRequestFailure(requestId, new Error(sizeValidation.error!));
+        throw new Error(`Batch payload validation failed: ${sizeValidation.error}`);
+      }
+
+      // Send batch request
+      const response = await this.http.post<any>(`${this.config.apiUrl}/batch`, sanitizedPayload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Error-Reporter': 'angular-sdk',
+          'X-SDK-Version': this.config.version || '1.0.0',
+          'X-Batch-Size': errors.length.toString(),
+          ...(payload.compressed && { 'Content-Encoding': 'gzip' })
+        }
+      }).toPromise();
+
+      this.sdkMonitor.recordRequestSuccess(requestId, payloadSize);
+      
+      if (this.config.debug) {
+        console.log(`[ErrorExplorer] Batch of ${errors.length} errors sent successfully`);
+      }
+    } catch (error: any) {
+      this.sdkMonitor.recordRequestFailure(requestId, error);
+      
+      // Handle specific HTTP errors
+      if (error.status === 401 || error.status === 403) {
+        // Don't retry authentication errors - disable the SDK
+        this.config.enabled = false;
+        if (this.config.debug) {
+          console.error('[ErrorExplorer] Authentication failed - disabling SDK. Check your project token.');
+        }
+        throw new Error('Authentication failed - SDK disabled');
+      }
+      if (error.status === 429) {
+        throw new Error('Rate limit exceeded by server');
+      }
+      if (error.status === 413) {
+        throw new Error('Batch payload too large');
+      }
+      
+      throw new Error(`Batch HTTP ${error.status || 'unknown'}: ${error.message || 'Request failed'}`);
     }
   }
 
@@ -444,11 +667,9 @@ export class ErrorExplorerService {
         throw new Error(`Payload validation failed: ${sizeValidation.error}`);
       }
 
-      const response = await this.http.post<any>(`${this.config.apiUrl}/webhook`, sanitizedPayload, {
+      const response = await this.http.post<any>(`${this.config.apiUrl}/webhook/error/${this.config.projectToken}`, sanitizedPayload, {
         headers: {
           'Content-Type': 'application/json',
-          'X-Error-Reporter': 'angular-sdk',
-          'X-SDK-Version': this.config.version || '1.0.0',
         }
       }).toPromise();
 
@@ -457,6 +678,14 @@ export class ErrorExplorerService {
       this.sdkMonitor.recordRequestFailure(requestId, error);
       
       // Handle specific HTTP errors
+      if (error.status === 401 || error.status === 403) {
+        // Don't retry authentication errors - disable the SDK
+        this.config.enabled = false;
+        if (this.config.debug) {
+          console.error('[ErrorExplorer] Authentication failed - disabling SDK. Check your project token.');
+        }
+        throw new Error('Authentication failed - SDK disabled');
+      }
       if (error.status === 429) {
         throw new Error('Rate limit exceeded by server');
       }
@@ -523,6 +752,60 @@ export class ErrorExplorerService {
     if (this.config.enableOfflineSupport) {
       await this.offlineManager.processQueue();
     }
+  }
+
+  async flushBatch(): Promise<void> {
+    if (this.config.enableBatching) {
+      await this.batchManager.flush();
+    }
+  }
+
+  getBatchStats(): ReturnType<BatchManagerService['getStats']> | null {
+    return this.config.enableBatching ? this.batchManager.getStats() : null;
+  }
+
+  getCompressionStats(): ReturnType<CompressionService['getStats']> | null {
+    return this.config.enableCompression ? this.compressionService.getStats() : null;
+  }
+
+  isCompressionSupported(): boolean {
+    return this.config.enableCompression && this.compressionService.isSupported();
+  }
+
+  resetCompressionStats(): void {
+    if (this.config.enableCompression) {
+      this.compressionService.resetStats();
+    }
+  }
+
+  getCircuitBreakerStats(): ReturnType<CircuitBreakerService['getStats']> | null {
+    return this.config.enableCircuitBreaker ? this.circuitBreaker.getStats() : null;
+  }
+
+  resetCircuitBreaker(): void {
+    if (this.config.enableCircuitBreaker) {
+      this.circuitBreaker.reset();
+    }
+  }
+
+  forceCircuitBreakerOpen(): void {
+    if (this.config.enableCircuitBreaker) {
+      this.circuitBreaker.forceOpen();
+    }
+  }
+
+  forceCircuitBreakerClose(): void {
+    if (this.config.enableCircuitBreaker) {
+      this.circuitBreaker.forceClose();
+    }
+  }
+
+  isCircuitBreakerOpen(): boolean {
+    return this.config.enableCircuitBreaker ? this.circuitBreaker.isCircuitOpen() : false;
+  }
+
+  getCircuitBreakerState(): string {
+    return this.config.enableCircuitBreaker ? this.circuitBreaker.getState() : 'DISABLED';
   }
 
   updateConfig(updates: Partial<ErrorExplorerConfig>): void {

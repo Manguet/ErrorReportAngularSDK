@@ -17,9 +17,9 @@ export class OfflineManagerService {
   private sendReportFunction?: (report: ErrorReport) => Promise<void>;
   private isProcessing = false;
 
-  constructor(maxQueueSize: number = 50, maxAge: number = 24 * 60 * 60 * 1000) {
-    this.maxQueueSize = maxQueueSize;
-    this.maxAge = maxAge;
+  constructor() {
+    this.maxQueueSize = 50;
+    this.maxAge = 24 * 60 * 60 * 1000;
     
     // Load queue from localStorage on initialization
     this.loadQueue();
@@ -29,6 +29,11 @@ export class OfflineManagerService {
       window.addEventListener('online', () => this.processQueue());
       window.addEventListener('offline', () => this.onOffline());
     }
+  }
+
+  configure(maxQueueSize: number, maxAge: number): void {
+    this.maxQueueSize = maxQueueSize;
+    this.maxAge = maxAge;
   }
 
   setSendReportFunction(fn: (report: ErrorReport) => Promise<void>): void {
@@ -112,7 +117,7 @@ export class OfflineManagerService {
 
   private onOffline(): void {
     // Could add offline-specific logic here
-    console.log('[OfflineManager] Application went offline');
+    // Application went offline - queue will be used
   }
 
   private cleanupQueue(): void {

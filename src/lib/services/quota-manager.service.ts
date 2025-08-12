@@ -15,10 +15,20 @@ export class QuotaManagerService {
   private state: QuotaState;
   private readonly STORAGE_KEY = 'error_explorer_quota';
 
-  constructor(config: QuotaConfig) {
-    this.config = config;
+  constructor() {
+    this.config = {
+      dailyLimit: 1000,
+      monthlyLimit: 10000,
+      payloadSizeLimit: 1024 * 1024,
+      burstLimit: 50,
+      burstWindowMs: 60000
+    };
     this.state = this.loadState();
     this.checkAndResetQuotas();
+  }
+
+  configure(config: QuotaConfig): void {
+    this.config = config;
   }
 
   canSendError(estimatedSize: number): { allowed: boolean; reason?: string } {

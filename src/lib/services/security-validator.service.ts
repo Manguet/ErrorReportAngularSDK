@@ -7,7 +7,15 @@ import { SecurityConfig, ValidationResult } from '../types';
 export class SecurityValidatorService {
   private config: SecurityConfig;
 
-  constructor(config: SecurityConfig) {
+  constructor() {
+    this.config = {
+      requireHttps: false,
+      validateToken: true,
+      maxPayloadSize: 1024 * 1024
+    };
+  }
+
+  configure(config: SecurityConfig): void {
     this.config = config;
   }
 

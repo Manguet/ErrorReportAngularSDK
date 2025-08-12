@@ -22,7 +22,7 @@
     "build": "ng-packagr -p ng-package.json",
     "test": "echo \"Tests disabled for standalone package\"",
     "test:watch": "echo \"Tests disabled for standalone package\"",
-    "test:coverage": "echo \"Tests disabled for standalone package\"", 
+    "test:coverage": "echo \"Tests disabled for standalone package\"",
     "test:ci": "echo \"Tests disabled for standalone package\"",
     "lint": "echo \"Linting disabled for standalone package\"",
     "lint:fix": "echo \"Linting disabled for standalone package\"",
@@ -60,12 +60,13 @@
     "tslib": "^2.6.0"
   },
   "devDependencies": {
+    "@angular/compiler-cli": "^15.2.10",
     "ng-packagr": "^15.0.0",
     "typescript": "~4.9.0"
   },
   "peerDependencies": {
-    "@angular/core": ">=14.0.0",
     "@angular/common": ">=14.0.0",
+    "@angular/core": ">=14.0.0",
     "@angular/router": ">=14.0.0",
     "rxjs": "^7.0.0"
   },

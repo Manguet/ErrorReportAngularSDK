@@ -8,7 +8,11 @@ export class BreadcrumbManager {
   private breadcrumbs: Breadcrumb[] = [];
   private maxBreadcrumbs: number;
 
-  constructor(maxBreadcrumbs: number = 50) {
+  constructor() {
+    this.maxBreadcrumbs = 50;
+  }
+
+  setMaxBreadcrumbs(maxBreadcrumbs: number): void {
     this.maxBreadcrumbs = maxBreadcrumbs;
   }
 

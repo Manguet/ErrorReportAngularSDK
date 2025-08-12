@@ -7,7 +7,15 @@ import { RetryConfig } from '../types';
 export class RetryManagerService {
   private config: RetryConfig;
 
-  constructor(config: RetryConfig) {
+  constructor() {
+    this.config = {
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 30000
+    };
+  }
+
+  configure(config: RetryConfig): void {
     this.config = config;
   }
 
@@ -59,6 +67,10 @@ export class RetryManagerService {
     const httpMatch = error.message.match(/HTTP (\d+):/);
     if (httpMatch) {
       const status = parseInt(httpMatch[1], 10);
+      // Don't retry on authentication/authorization errors
+      if (status === 401 || status === 403) {
+        return false;
+      }
       // Retry on server errors (5xx) and some client errors
       return status >= 500 || status === 429 || status === 408;
     }

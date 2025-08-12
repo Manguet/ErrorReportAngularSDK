@@ -14,7 +14,15 @@ export class RateLimiterService {
   private errorFingerprints: Map<string, number> = new Map();
   private config: RateLimiterConfig;
 
-  constructor(config: RateLimiterConfig) {
+  constructor() {
+    this.config = {
+      maxRequests: 10,
+      windowMs: 60000,
+      duplicateErrorWindow: 5000
+    };
+  }
+
+  configure(config: RateLimiterConfig): void {
     this.config = config;
   }
 
@@ -46,14 +54,23 @@ export class RateLimiterService {
   }
 
   createErrorFingerprint(error: Error, additionalData?: Record<string, any>): string {
-    const components = [
-      error.constructor.name,
-      error.message,
-      this.extractFirstStackFrame(error.stack),
-      additionalData?.type || 'unknown'
-    ];
+    // Enhanced fingerprint combining stack trace signature + message
+    const stackSignature = this.extractStackSignature(error.stack || '', 3);
+    const messageSignature = (error.message || '').substring(0, 100);
+    const errorType = error.constructor.name;
     
-    return components.join('|');
+    // Combine signatures
+    const combined = `${stackSignature}|${messageSignature}|${errorType}`;
+    
+    // Create a simple hash for consistency
+    let hash = 0;
+    for (let i = 0; i < combined.length; i++) {
+      const char = combined.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    return Math.abs(hash).toString(36).substring(0, 32);
   }
 
   getRemainingRequests(): number {
@@ -90,6 +107,37 @@ export class RateLimiterService {
         this.errorFingerprints.delete(fingerprint);
       }
     }
+  }
+
+  /**
+   * Extract stack trace signature by taking the first N meaningful frames
+   * and normalizing line numbers to avoid over-segmentation
+   */
+  private extractStackSignature(stackTrace: string, depth: number = 3): string {
+    if (!stackTrace) return '';
+    
+    const lines = stackTrace.split('\n');
+    
+    // Filter meaningful frames (ignore empty lines and browser internals)
+    const meaningfulFrames = lines.filter(line => {
+      const trimmed = line.trim();
+      return trimmed && 
+             trimmed.includes('at ') &&
+             !trimmed.includes('chrome-extension://') &&
+             !trimmed.includes('webpack://') &&
+             !trimmed.includes('node_modules/@angular') &&
+             (trimmed.includes('.ts') || trimmed.includes('.js') || trimmed.includes('.component'));
+    });
+    
+    // Take first N frames
+    const frames = meaningfulFrames.slice(0, depth);
+    
+    // Normalize each frame (remove specific line numbers and columns)
+    const normalizedFrames = frames.map(frame => {
+      return frame.replace(/:\d+:\d+/g, ':XX:XX').replace(/:\d+/g, ':XX');
+    });
+    
+    return normalizedFrames.join('|');
   }
 
   private extractFirstStackFrame(stack?: string): string {
